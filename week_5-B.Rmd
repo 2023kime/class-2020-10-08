@@ -113,7 +113,26 @@ simulate_election <- function(n_times) {
 
 Call the `simulate_election` function to simulate 100 elections and assign the result to an object named `draws`. Print that object out in the console and look at it. How is it formatted? It will have 100 rows and 51 columns. Figure out a way to reformat the dataset so that it has a "state" and a "trump_share" column with only one numerical value printed out per row. That is, instead of this format with 51 columns and so 51 numerical values per row, create a dataset that will have 2 columns and only one numerical value per row. This is convenient because `ggplot` prefers working with data formatted this way (think about it, how would you plot 51 columns on a `ggplot`? Much easier to use a `state` column!). 
 
+```{r}
+
+draws <- simulate_election(100) %>%
+  pivot_longer(names_to = "state",
+               values_to = "trump_share",
+                cols = 1:51) %>%
+  filter(state == "Arizona" | state == "Georgia")
+draws
+```
+
 Finally, use `geom_density` to plot the distributions of two states of your choice. Make this plot beautiful!
+
+```{r}
+
+ggplot(draws, aes(trump_share, fill = state)) + 
+  geom_density() +
+  theme_classic() +
+  facet_wrap(~state)
+
+```
 
 **You should do this in steps. First, create the `draws` object. Second, try to successfully change the format of the dataset. Don't do everything all at once in one long section with many pipes!!**
 
@@ -123,11 +142,41 @@ Finally, use `geom_density` to plot the distributions of two states of your choi
 
 In Scene 1, we called this election simulation function a single time. Now, create a new `tibble` called `elections` with one column, `simulations`, that simulates one election in each of 1000 rows. Finally, use this `elections` object to create a column called `pa_win` that uses a `map` function to figure out whether Trump wins Pennsylvania in each of these simulated elections. Once you've verified that works, take the average of the `pa_win` column to see how likely Trump is to win Pennsylvania across all of these simulations.
 
+```{r}
+
+elections <- tibble(simulations = map(rep(1, 1000), simulate_election))
+elections
+elections %>%
+  mutate(pa_win = map_lgl(simulations, ~.$Pennsylvania > 50)) %>%
+  summarize(pa_avg = mean(pa_win))
+         
+
+case_when(
+    trump_share > 50 ~ "WINS",
+    trump_share = 50 ~ "DRAW",
+    TRUE ~ "LOSES")))
+elections
+```
 
 
 ## Scene 3: Do it again!
 
 First, repeat Scene 2 to make a column called `oh_win` that uses a `map` function to figure out whether Trump wins Pennsylvania in each of these simulated elections. Then, create a column `called` both that is TRUE if Trump wins both PA and OH and FALSE otherwise.
+
+```{r}
+q3_elections <- elections %>%
+  mutate(oh_win = map_lgl(simulations, ~.$Ohio > 50)) %>%
+  mutate(pa_win = map_lgl(simulations, ~.$Pennsylvania > 50)) %>%
+  mutate(both = case_when(
+    pa_win == TRUE & oh_win == TRUE ~ TRUE,
+    TRUE ~ FALSE
+  )) 
+
+q3_elections %>%
+  summarize(pa_avg = mean(pa_win), oh_avg = mean(oh_win),
+            both_avg = mean(both))
+  
+```
 
 Once that is all done, summarise your dataset to estimate the probabilities of (1) winning PA, (2) winning OH, and (3) winning both.
 
@@ -137,8 +186,17 @@ Once that is all done, summarise your dataset to estimate the probabilities of (
 
 In Scene 4, we estimated the probabilities of winning two states. However, notice we treated these as two entirely separate events. That is, our analyses assumed that Trump winning PA had nothing to do with him winning OH and treated the two events as statistically **independent**. Recall the discussion in Chapter 5 about independence. Two events are independent if the realization of one event does not effect the realization of another. For example, two fair coin flips in a row are independent - the second coin flip couldn't care any less if the first was heads or tails. However, we probably don't think that state election results are independent. If a candidate does well in one coastal, liberal state, they will probably do well in another. Independent events have a statistical correlation of 0.
 
+
 The Economist says that results in PA and OH are likely to be highly correlated - around 0.7. Let's investigate this using conditional probabilities. Using your elections object from Scene 2, again create two columns called `oh_win` and `pa_win` that map to TRUE and FALSE if Trump wins each state. Then, calculate the probability of winning PA in two scenarios - when Trump wins OH, and when he doesn't. That is, (1) what percentage of the time does Trump win PA if he loses OH, and (2) what percentage of the time does Trump win PA if he wins OH?
 
+```{r}
+
+q3_elections %>%
+  group_by(oh_win == TRUE) %>%
+  summarize(pa_avg = mean(pa_win))
+  
+# Win PA given OH = 35%, win PA given lose OH = 6.9%
+```
 
 
 ## Scene 5
@@ -147,7 +205,25 @@ Our simulation only includes the predicted popular vote results. Let's simulate 
 
 1. First, create a new dataset called `elections_100` that uses `map` to call `simulate_election` with n=1 100 times in a column called `simulations`. Print out `elections_100`. You'll see a list-column where each row is a 1 x 51 dataset.
 
+```{r}
+
+elections_100 <- tibble(simulations = map(rep(1, 100), simulate_election))
+elections_100
+View(elections_100)
+```
+
 2. Just like any other dataset, we can use functions like pivot and join on these list-column entries. They're just `tibbles`! The only thing that has changed is that now a separate tibble contains other tibbles inside of a list-column. Second, use `map` to pivot each of those simulations into a longer format. Save these pivoted datasets into a new list-column called `df_pivoted`. Don't forget you will need the `~` and `.` syntax.
+
+```{r}
+
+elections_100 %>%
+mutate(df_pivoted =
+ map(simulations, ~pivot_longer(., 
+                                cols = 1,
+                                names_to = "states")))
+View(elections_100$df_pivoted)
+
+```
 
 3. `cor.states` has a column called `evs` which gives the electoral votes for each state. We'd like to use this! Third, use `map` to join each dataset in `df_pivoted` with the `cor.states` dataset by the `state` column. Store this in a new column called `df_joined`. 
 
